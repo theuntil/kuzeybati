@@ -1,0 +1,2485 @@
+/* =============================================================
+   KUZEYBATI HABER — TASARIM SİSTEMİ
+
+   Prototipten (Kuzeybatı Haber.dc.html) BİREBİR alındı.
+   Prototip mobil/masaüstü geçişini JavaScript ile yapıyordu
+   (applyDevice); gerçek sitede bunun karşılığı medya sorgusudur.
+   Aşağıdaki mobil değerler o fonksiyondaki değerlerin aynısı.
+   ============================================================= */
+
+:root {
+  color-scheme: dark;
+
+  --bg:#0F0F0F; --s1:#161616; --s2:#1D1D1D; --s3:#262626; --bd:#282828;
+  --tx:#EFF3F4; --mu:#8FA1A9; --ac:#B3221E; --ac2:#30D158; --dn:#FF453A;
+}
+
+/*
+ * ┌─ AÇIK TEMADA KOYU TİTREME ⚠️ ──────────────────────────────┐
+ * │ `:root` koyu, açık tema yalnızca `[data-theme="light"]`    │
+ * │ geldiğinde uygulanıyordu. O attribute `kb-theme` çerezinden│
+ * │ geliyor; çerez HENÜZ YOKSA (ilk ziyaret) ya da sayfa       │
+ * │ statik üretildiyse ilk kare KOYU boyanıyor, sonra script   │
+ * │ açığa çeviriyordu. Açık tema kullanan okur her sayfa       │
+ * │ geçişinde saliselik koyu bir çakma görüyordu.               │
+ * │                                                              │
+ * │ Artık işletim sistemi açık temadaysa varsayılan da açık.   │
+ * │ Attribute geldiğinde aşağıdaki kural bunu geçersiz kılıyor;│
+ * │ yani kullanıcı seçimi her zaman üstün — yalnızca çerezin   │
+ * │ olmadığı o ilk anda sistem tercihine güveniliyor.          │
+ * │                                                              │
+ * │ ⚠ `:root:not([data-theme])` ŞART. Sadece `@media` yazmak   │
+ * │ sisteme açık ayarlı ama siteyi KOYU seçmiş kullanıcıda     │
+ * │ ters titremeye yol açardı.                                  │
+ * └──────────────────────────────────────────────────────────────┘
+ */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+      --bg:#FFFFFF; --s1:#F7F8F9; --s2:#F0F2F4; --s3:#E6E9EC; --bd:#E1E5E8;
+      --tx:#111619; --mu:#66757C; --ac:#A31E1A; --ac2:#1D8F3F; --dn:#D32B1E;
+      --ai-fg:#6D28D9; --ai-bg:rgba(109,40,217,.07); --ai-bd:rgba(109,40,217,.18);
+  }
+}
+
+/* Koyu tema kuralları — attribute'süz durum yukarıda ele alındı */
+:root {
+
+  /* Birincil düğme rengi: marka kırmızısı DEĞİL.
+     Kırmızı uyarı/silme rengi; onay düğmesinde kullanılınca
+     kullanıcı tehlikeli bir işlem sanıyor. Nötr siyah/beyaz. */
+  --btn: var(--tx); --btn-fg: var(--bg);
+
+  --gut:32px; --g:20px; --h1:44px; --h2:26px; --hero:420px;
+  /* Hero başlığı: --h1'den bir tık küçük, manşet ezici olmasın */
+  --heroTitle:36px;
+  --card:264px; --side:300px; --main:380px; --thumb:150px; --thumbH:100px;
+  --max:1320px; --max-head:100%; --fb:0 solid transparent; --lead:19px;
+  --rail-card:300px;
+  --fyW:180px; --fyT:20px; --feedMax:600px; --heroPad:104px;
+  --actBtn:38px; --aiBtnH:38px; --aiBtnP:16px;
+  --radius:14px; --radius-lg:18px;
+
+  /* Okuma boyutu — haber gövdesi bunu çarpan olarak kullanır.
+     Öznitelik <html>'de olduğu için tüm haberlerde geçerli olur. */
+  --read-scale:1;
+  --fy-thumb:150px;
+  /* Video kartı: masaüstünde 4-5 tanesi yan yana sığsın */
+  --vid-w:clamp(128px, 14vw, 162px);
+  --cat-w:264px;
+
+  /* AI özeti kutusu — mor. Marka kırmızısından ayrı bir renk:
+     okur bu bölümün makine tarafından üretildiğini bir bakışta
+     ayırt edebilmeli. */
+  --ai-fg:#A78BFA; --ai-bg:rgba(139,92,246,.10); --ai-bd:rgba(139,92,246,.22);
+}
+
+[data-read="s"]  { --read-scale: .88; }
+[data-read="m"]  { --read-scale: 1; }
+[data-read="l"]  { --read-scale: 1.14; }
+[data-read="xl"] { --read-scale: 1.3; }
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg:#FFFFFF; --s1:#F7F8F9; --s2:#F0F2F4; --s3:#E6E9EC; --bd:#E1E5E8;
+  --tx:#111619; --mu:#66757C; --ac:#A31E1A; --ac2:#1D8F3F; --dn:#D32B1E;
+  --ai-fg:#6D28D9; --ai-bg:rgba(109,40,217,.07); --ai-bd:rgba(109,40,217,.18);
+}
+
+* { box-sizing: border-box; }
+/*
+ * ┌─ SAYFA GEÇİŞİNDE AŞAĞIDAN BAŞLIYORDU ⚠️ ──────────────────┐
+ * │ `scroll-behavior: smooth` HTML kökünde tanımlıydı.        │
+ * │                                                              │
+ * │ Bağlantılar düz `<a>` iken sorun görünmüyordu: tarayıcı   │
+ * │ sayfayı sıfırdan yükleyip zaten en üstten başlıyordu.     │
+ * │                                                              │
+ * │ `<Link>`e geçince Next başa kaydırmayı KENDİ yapıyor —    │
+ * │ ve yumuşak kaydırma bunu animasyona çeviriyor. Okur yeni  │
+ * │ sayfayı aşağıdan görüp yukarı süzülüyor; "en aşağıdan     │
+ * │ başlıyor" hissi buradan geliyor.                            │
+ * │                                                              │
+ * │ Sayfa geçişi ANINDA başa dönmeli. Yumuşak kaydırma        │
+ * │ yalnızca sayfa İÇİ çapa bağlantılarında anlamlı; oraya    │
+ * │ `.kb-yumusak` sınıfıyla verilebilir.                       │
+ * └──────────────────────────────────────────────────────────────┘
+ */
+html { scroll-behavior: auto; }
+.kb-yumusak { scroll-behavior: smooth; }
+
+html {
+  /* Yazı tipi kuralları FontFaces bileşeni tarafından
+     public/fonts taranarak üretilir. Dosya adı ne olursa olsun
+     bulunur; klasör boşsa Inter kullanılır. */
+  font-family: "Yahoo Sans", Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--tx);
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, p { margin: 0; }
+a { color: var(--ac); text-decoration: none; }
+a:hover { color: var(--tx); }
+button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; text-align: left; padding: 0; }
+input, textarea, select { font: inherit; }
+
+/* Prototipteki genel kural: görseller kabını doldurur. */
+img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Arapça sağdan sola. Ayna çevrilmesi gereken her yerde
+   margin-inline / padding-inline / inset-inline kullanıldı. */
+[dir="rtl"] { --heroPad: 24px; }
+
+[data-hide-sb] { scrollbar-width: none; -ms-overflow-style: none; }
+[data-hide-sb]::-webkit-scrollbar { display: none; }
+
+@keyframes tick { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+@keyframes shimmer { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+[dir="rtl"] [data-ticker] { animation-direction: reverse; }
+
+/* ---- Tema başına logo ----------------------------------------
+   ⚠ BU KURAL TERSTİ.
+
+   Eskiden açık temada `data-logo-light` gizleniyordu — yani
+   "açık tema logosu" tam da açık temada görünmüyordu. Panelde
+   hangi kutuya yüklersen yükle yanlış logo çıkıyordu.
+
+   Doğrusu:
+     açık tema  → logo_light_key  (koyu renkli çizim)
+     koyu tema  → logo_dark_key   (açık renkli çizim) */
+[data-theme="light"] [data-logo-dark]  { display: none; }
+[data-theme="dark"]  [data-logo-light] { display: none; }
+
+:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; border-radius: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Görünürlük -------------------------------------------
+   Prototip display'i JS ile atıyordu. Burada sadece GİZLİYORUZ;
+   görünürken elemanın kendi display'ine dokunmuyoruz. Aksi halde
+   flex kutular satır içine düşer — header'ın bozulma sebebi buydu. */
+@media (max-width: 860px) { [data-only="desktop"] { display: none !important; } }
+@media (min-width: 861px) { [data-only="mobile"]  { display: none !important; } }
+
+/* ---- Mobil: applyDevice() değerlerinin birebir karşılığı ---- */
+@media (max-width: 860px) {
+  :root {
+    --gut:16px; --g:14px; --h1:27px; --h2:20px; --hero:300px;
+    --heroTitle:24px;
+    --card:150px; --side:100%; --main:100%; --thumb:104px; --thumbH:74px;
+    --lead:17px; --fyW:120px; --fyT:16px; --feedMax:100%;
+    --actBtn:34px; --aiBtnH:40px; --aiBtnP:0; --heroPad:24px;
+    --fy-thumb:104px;
+    /* Mobilde üç kart görünsün: (100vw - kenar - 2 boşluk) / 3 */
+    --vid-w:calc((100vw - 2 * var(--gut) - 2 * 12px) / 3);
+    --cat-w:210px;
+    --max:100%;
+  }
+
+  /* En çok okunanlar rayı mobilde gizli (data-mob-hide) */
+  [data-mob-hide] { display: none !important; }
+
+  /* Izgaralar mobilde yatay kaydırmaya döner */
+  [data-feat] {
+    display: flex !important;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+  [data-feat] > * {
+    flex: 0 0 auto;
+    width: 220px;
+    scroll-snap-align: start;
+  }
+
+  [data-home-wrap] { max-width: 100% !important; }
+
+  /* Mobil sekme çubuğu sabit; içerik altında kalmasın */
+  body { padding-bottom: 62px; }
+}
+
+@media (min-width: 861px) {
+  [data-home-wrap] { max-width: 100%; }
+
+  /**
+   * MASAÜSTÜ İÇERİK GENİŞLİĞİ
+   *
+   * İçerik ekranın %80'ini kaplar, kalan iki yana boşluk olur.
+   * 900px alt sınırı zorunlu: kırılma noktasında 80vw ≈ 689px
+   * olurdu ve hero + yan sütun düzeni çökerdi.
+   *
+   * HEADER BU SINIRA TABİ DEĞİL — tam genişlik kalır (--max-head).
+   */
+  :root { --max: max(900px, 80vw); }
+}
+
+/* ---- İçerik genişliği --------------------------------------
+   Masaüstünde sayfa ekranın %80'ini kaplar; iki yanda boşluk
+   kalır. Header ve footer'ın ZEMİNİ tam genişlikte, yalnızca
+   içerikleri bu ölçüde ortalanır.
+
+   Ara boyutlarda (tablet, küçük dizüstü) %80 fazla dar kalırdı;
+   orada %92 kullanılıyor. */
+@media (min-width: 861px) and (max-width: 1279px) {
+  :root { --max: 92vw; }
+}
+@media (min-width: 1280px) {
+  :root { --max: 80vw; }
+}
+
+/* ---- Haber gövdesi -----------------------------------------
+   Serif kaldırıldı: gövde de sitenin yazı tipini (Yahoo Sans)
+   kullanır. İki ayrı yazı tipi hem tutarsız duruyordu hem de
+   fazladan dosya indiriyordu. */
+.prose { font-size: var(--lead); line-height: 1.72; }
+.prose p { margin: 0 0 1.1em; overflow-wrap: anywhere; }
+.prose h3 { font-family: inherit; font-size: 20px; font-weight: 800; margin: 1.6em 0 .6em; }
+.prose a { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---- Form / düğme ------------------------------------------ */
+.field {
+  width: 100%; height: 42px; border-radius: 12px; background: var(--s2);
+  border: 1px solid var(--bd); color: var(--tx); padding: 0 14px;
+  outline: none; font-size: 14px;
+}
+.field::placeholder { color: var(--mu); }
+.field:focus { border-color: var(--ac); }
+textarea.field { height: auto; padding: 12px 14px; }
+
+.btn-pill {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 42px; padding: 0 16px; border-radius: 12px;
+  background: var(--tx); color: var(--bg); font-size: 13.5px; font-weight: 700;
+}
+.btn-pill:hover { opacity: .9; color: var(--bg); }
+.btn-pill:disabled { opacity: .5; cursor: not-allowed; }
+
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 11px; background: var(--s2);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  color: var(--tx);
+}
+.icon-btn:hover { background: var(--s3); color: var(--tx); }
+
+.nav-pill {
+  padding: 7px 12px; border-radius: 9px; font-size: 13.5px; font-weight: 600;
+  color: var(--mu); white-space: nowrap;
+}
+.nav-pill:hover { color: var(--tx); }
+.nav-pill[data-active="true"] { background: var(--s2); color: var(--tx); }
+
+.chev { color: var(--mu); display: flex; align-items: center; }
+.chev:hover { color: var(--tx); }
+[dir="rtl"] .chev svg { transform: scaleX(-1); }
+
+/* =============================================================
+   Yardımcı sınıflar — iç sayfalarda (haber, kategori, arama)
+   kullanılır. Değerler ana sayfadaki satır içi stillerle aynı
+   tokenlardan gelir; ikinci bir tasarım dili yok.
+   ============================================================= */
+
+.muted { color: var(--mu); }
+.eyebrow {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border-radius: 6px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; white-space: nowrap;
+}
+
+.card {
+  display: flex; flex-direction: column; min-width: 0;
+  border-radius: var(--radius); overflow: hidden;
+  background: var(--s1); border: 1px solid var(--bd);
+  color: var(--tx);
+  transition: border-color .18s ease;
+}
+.card:hover { border-color: var(--mu); color: var(--tx); }
+.card-media { position: relative; width: 100%; background: var(--s2); overflow: hidden; }
+.card-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 7px; }
+.card-title { font-size: 15.5px; font-weight: 700; line-height: 1.32; overflow-wrap: anywhere; text-wrap: pretty; }
+.card-meta {
+  font-size: 12px; font-weight: 600; color: var(--mu);
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+
+.section-head { display: flex; align-items: baseline; gap: 10px; margin: 28px 0 14px; }
+.section-head h2 { font-size: var(--h2); font-weight: 800; letter-spacing: -.03em; }
+.section-head a { font-size: 13px; font-weight: 700; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 16px; border-radius: 11px;
+  font-size: 14px; font-weight: 700;
+  background: var(--s2); color: var(--tx);
+  transition: background .15s ease;
+}
+.btn:hover { background: var(--s3); color: var(--tx); }
+.btn-primary { background: var(--tx); color: var(--bg); }
+.btn-primary:hover { background: var(--tx); color: var(--bg); opacity: .9; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Sana Özel liste satırı: başlık üzerine gelince altı çizilir */
+.kb-listrow:hover .kb-listrow-title { text-decoration: underline; text-underline-offset: 3px; }
+.kb-listrow { transition: opacity .15s ease; }
+.kb-listrow:hover { color: var(--tx); }
+
+@keyframes kbPulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+
+/* Birincil/ikincil düğme: dokununca hafif küçülme */
+.kb-primary:active:not(:disabled) { transform: scale(.985); }
+.kb-primary:disabled { cursor: default; }
+
+/* ---- Yazar / yayıncı profil başlığı --------------------------
+   Sosyal düğmeler mobilde ekranın kenarına yapışıyordu. Dar
+   ekranda tam satıra geçip sola yaslanıyorlar. */
+@media (max-width: 640px) {
+  .profil-sosyal {
+    width: 100%;
+    justify-content: flex-start;
+    padding-top: 4px;
+  }
+}
+
+/* ---- Kaydırınca daralan header -------------------------------
+   Sayfa aşağı kaydırılınca borsa şeridi ve şehir/kategori şeridi
+   kapanır; yalnızca ana satır kalır.
+
+   İKİ EŞİK var (JS tarafında): 120px'de kapanır, 60px'de açılır.
+   Tek eşik olsaydı sınırda sürekli açılıp kapanırdı.
+
+   ⚠ GRID YERİNE max-height.
+   Önce `grid-template-rows: 0fr` kullanıyordum. Satır sıfırlanıyor
+   ama kabın kendi kutu ölçüleri (kenarlık, dolgu, satır boşluğu)
+   kalıyor ve header'ın altında birkaç pikselllik açıklanamayan
+   boşluk bırakıyordu — üstte böyle bir kalıntı olmadığı için
+   header dikey olarak dengesiz görünüyordu.
+
+   `max-height: 0` + `overflow: hidden` hiçbir kalıntı bırakmıyor.
+   Yükseklik ölçmeye de gerek yok: 400px üst sınır her şeridi
+   kapsıyor ve geçişi kısaltıyor. */
+[data-daralan] {
+  overflow: hidden;
+  max-height: 400px;
+  opacity: 1;
+  transition: max-height .3s cubic-bezier(.4, 0, .2, 1),
+              opacity .18s ease;
+}
+
+:root[data-header-dar="1"] [data-daralan] {
+  /* Kutu ölçülerinin TAMAMI sıfır — kalıntı boşluk kalmasın */
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  border-width: 0 !important;
+  padding-block: 0 !important;
+  margin-block: 0 !important;
+}
+
+/* Hareket azaltma tercihi olan kullanıcıda animasyon yok */
+@media (prefers-reduced-motion: reduce) {
+  [data-daralan] { transition: none; }
+}
+
+/* ---- Header ana satırı ---------------------------------------
+   Sabit yükseklik: içerik dikey olarak tam ortada durur ve
+   kaydırma modunda header'ın yüksekliği belirsiz kalmaz. */
+[data-topbar] {
+  height: 54px;
+  min-height: 54px;
+  /* Yükseklik yumuşak değişsin — kaydırma modunda büyüyor */
+  transition: height .28s cubic-bezier(.4, 0, .2, 1);
+}
+@media (max-width: 860px) {
+  [data-topbar] { height: 52px; min-height: 52px; }
+}
+
+/* ⚠ KAYDIRMA MODUNDA DAHA YÜKSEK.
+   Şeritler kapanınca header fazla inceliyor ve logo ile
+   düğmeler sıkışık duruyordu. Tek satır kaldığı için biraz
+   daha nefes alması gerekiyor. */
+:root[data-header-dar="1"] [data-topbar] {
+  height: 64px;
+  min-height: 64px;
+}
+@media (max-width: 860px) {
+  :root[data-header-dar="1"] [data-topbar] {
+    height: 60px;
+    min-height: 60px;
+  }
+}
+
+/* ---- Header ana satır yüksekliği -----------------------------
+   `alignItems: center` ile birlikte dikey ortalamayı garanti
+   ediyor: dolgu yok, sabit yükseklik var. Böylece üstteki ve
+   alttaki boşluk tam olarak eşit.
+
+   Kaydırma modunda biraz kısalıyor — şeritler kapanınca header
+   zaten sadeleşiyor, yüksek kalması gereksiz yer kaplıyordu. */
+:root { --topbar-h: 52px; }
+:root[data-header-dar="1"] { --topbar-h: 48px; }
+
+@media (max-width: 860px) {
+  :root { --topbar-h: 50px; }
+  :root[data-header-dar="1"] { --topbar-h: 46px; }
+}
+
+/* ---- Dokunma tepkisi -----------------------------------------
+   Beğeni ve kaydetme düğmeleri basıldığı ANDA küçülüyor.
+   Sunucudan yanıt beklenmiyor: iyimser güncelleme zaten
+   durumu hemen değiştiriyor, bu da dokunuşun hissedilmesini
+   sağlıyor. iOS'taki düğme davranışının aynısı. */
+.kb-tap {
+  transition:
+    background .2s ease,
+    color .2s ease,
+    border-color .2s ease,
+    width .26s cubic-bezier(.34, 1.56, .64, 1),
+    padding .26s cubic-bezier(.34, 1.56, .64, 1),
+    transform .1s ease;
+  will-change: transform;
+}
+.kb-tap:active {
+  transform: scale(.9);
+}
+@media (prefers-reduced-motion: reduce) {
+  .kb-tap, .kb-tap:active { transition: none; transform: none; }
+}
+
+/* ---- Paylaşılan yoruma inince vurgulama --------------------
+   Bağlantı `#yorum-{id}` taşıyor. Hedef yorum kısaca parlayıp
+   sönüyor; okur hangi yorumdan bahsedildiğini görüyor.
+
+   `outline` kullanılıyor, `border` değil: kenarlık düzeni
+   kaydırır, dış çizgi kaydırmaz. */
+.kb-yorum {
+  border-radius: 14px;
+  outline: 2px solid transparent;
+  outline-offset: 6px;
+  transition: outline-color .4s ease, background .4s ease;
+}
+.kb-yorum-vurgu {
+  outline-color: var(--ac);
+  background: color-mix(in srgb, var(--ac) 8%, transparent);
+  animation: kb-yorum-parla 2.4s ease;
+}
+@keyframes kb-yorum-parla {
+  0%, 100% { outline-color: transparent; }
+  15%, 55% { outline-color: var(--ac); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kb-yorum-vurgu { animation: none; }
+}
+
+/* ---- Metin arası haber önerisi ------------------------------
+   Masaüstünde solda büyük kart, sağda liste. Mobilde tek sütun:
+   dar ekranda iki sütun okunmuyor, görseller de kullanılamayacak
+   kadar küçülüyor. */
+.kb-oneri {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1fr;
+}
+.kb-oneri-liste {
+  display: flex;
+  flex-direction: column;
+}
+@media (min-width: 720px) {
+  .kb-oneri {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 22px;
+  }
+}
+
+/* ---- Mini video oynatıcı ------------------------------------
+   Video ekrandan çıkınca köşede küçük oynatıcı beliriyor.
+
+   ⚠ Sınıf hiç tanımlı değildi: bileşen `kb-mini` veriyordu ama
+   karşılığı yoktu, bu yüzden mini kutu inline ölçülerle
+   davranıyordu.
+
+   Köşe `data-kose` ile seçiliyor; sürüklenip bırakılınca
+   bileşen en yakın köşeyi hesaplayıp bu değeri değiştiriyor. */
+.kb-mini {
+  position: fixed !important;
+  width: min(280px, 42vw);
+  aspect-ratio: 16 / 9;
+  height: auto !important;
+  max-height: none !important;
+  border-radius: 14px;
+  overflow: hidden;
+  z-index: 120;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .38);
+  background: #000;
+  /* Sabit sağ alt köşe — sürükleme kaldırıldı */
+  inset: auto 16px 16px auto;
+}
+@media (max-width: 640px) {
+  .kb-mini { width: min(210px, 55vw); }
+}
+
+
+/* Mini modda oynatıcı çubuğu ve büyük düğmeler gizli:
+   200 piksellik kutuda üst üste biniyorlardı. */
+.kb-mini [data-player-bar],
+.kb-mini [data-player-big] { display: none !important; }
+
+
+/* ---- Beğeni ve kaydetme düğmeleri ----------------------------
+   ⚠ İkon dosyaları SİYAH çizim.
+
+   Koyu temada siyah ikon koyu zeminde görünmüyordu; `filter`
+   ile beyaza çevriliyor. Seçili durumda zemin marka rengi
+   oluyor ve ikon her iki temada da beyaz olmalı. */
+/* Koyu temada boş ikon beyaz — siyah çizim zeminde kaybolur */
+[data-theme="dark"] .kb-tap img {
+  filter: brightness(0) invert(1);
+}
+
+/* Seçili durumda zemin marka rengi; ikon beyaz */
+[data-aksiyon="secili"] img {
+  filter: brightness(0) invert(1) !important;
+}
+
+/* ⚠ KOYU TEMADA KAYDEDİLDİ İKONU SİYAH.
+   Koyu temada kaydetme düğmesinin seçili zemini açık renk;
+   beyaz ikon üzerinde okunmuyordu. Yalnızca dolu yer imi
+   etkileniyor — kalp marka renginde kalıyor. */
+[data-theme="dark"] [data-aksiyon="secili"][data-tur="bookmark"] img[data-dolu] {
+  filter: none !important;
+}
+
+/* ---- Yan sütun widget'ları -----------------------------------
+   İç dolgu dardı; başlık ve içerik kenara yapışık duruyordu. */
+aside .card,
+aside .kb-widget {
+  padding: 20px 18px;
+}
+@media (max-width: 860px) {
+  aside .card,
+  aside .kb-widget { padding: 18px 16px; }
+}
+
+
+/* ---- Metin arası haber önerisi ------------------------------
+   Solda öne çıkan haber, sağda liste.
+
+   ⚠ MOBİL AYRI TASARLANDI: masaüstü ızgarasını küçültmek
+   yetmiyordu. 160 piksellik görseller ve 28 piksellik
+   başlıklar dar ekranda kartları hantallaştırıyor. */
+/* ══════════════════════════════════════════════════════════════
+   METİN ARASINDA HABER ÖNERİSİ
+
+   Eskize göre: masaüstünde solda büyük haber (metin görselin
+   üzerinde), sağda 3 küçük haber alt alta. Mobilde tek sütun,
+   altta yalnızca 2 küçük haber yan yana.
+
+   ⚠ RENKLER TEMAYA BAĞLI.
+   Eskizde sabit gri tonlar (#E2E2E2, #C7C7C7) vardı; site koyu
+   temada da çalıştığı için değişkenler kullanılıyor. Kırmızı
+   kategori etiketi eskizdeki gibi sabit — marka rengi.
+   ══════════════════════════════════════════════════════════════ */
+.oneri {
+  margin: 26px 0;
+  max-width: 100%;
+}
+
+.oneri-baslik {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  /* ⚠ Başlık altı ince çizgi kaldırıldı — blok zaten ayrışıyor */
+  margin: 0 0 12px;
+  color: var(--tx);
+}
+
+.oneri-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+/* ---- Kategori etiketi ---- */
+.oneri-etiket {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #C81E1E;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.oneri-etiket-one { background: #E85D5A; }
+
+/* ---- ÖNE ÇIKAN ---- */
+.oneri-one {
+  position: relative;
+  display: block;
+  border-radius: 18px;
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  background: var(--s2);
+}
+.oneri-one-gorsel {
+  display: block;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: var(--s2);
+}
+.oneri-one-gorsel img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/*
+ * Metin katmanı görselin ALT kısmında.
+ * Alttan yukarı koyu geçiş: açık görsellerde beyaz yazı
+ * okunmuyordu.
+ */
+.oneri-one-katman {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  /* Yazı kenarlara ve alta değmesin */
+  padding: 54px 20px 22px;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, .88) 0%,
+    rgba(0, 0, 0, .62) 45%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+.oneri-one-baslik {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /* Mobilde blok içindeki en büyük öğe — belirgin olmalı */
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.28;
+  letter-spacing: -.02em;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.oneri-one-ozet {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, .78);
+  overflow-wrap: anywhere;
+}
+
+/* ---- KÜÇÜK HABERLER ---- */
+.oneri-liste {
+  display: grid;
+  /*
+   * ⚠ MOBİLDE İKİ SÜTUN.
+   * Eskizde küçük haberler yan yana; tek sütunda blok
+   * gereksiz uzuyordu.
+   */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+ * ⚠ ÜÇÜNCÜ HABER MOBİLDE GİZLİ.
+ * Eskizde mobilde yalnızca 2 küçük haber var. Sunucuda
+ * kesmek yerine CSS ile gizleniyor: ekran genişliği
+ * sunucuda bilinmiyor ve ilk boyamada yanlış sayı çıkardı.
+ */
+.oneri-ucuncu { display: none; }
+
+.oneri-satir {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+.oneri-satir-gorsel {
+  display: block;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--s2);
+  flex-shrink: 0;
+}
+.oneri-satir-gorsel img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.oneri-satir-metin {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+.oneri-satir-baslik {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--tx);
+  overflow-wrap: anywhere;
+}
+.oneri-satir-ozet {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--mu);
+  overflow-wrap: anywhere;
+}
+
+/* ---- Mobil: zemin kutusu ---- */
+/*
+ * ⚠ MOBİLDE ZEMİN VE ÇERÇEVE YOK.
+ * Kutu, blok içindeki haberleri sayfadan koparıyor ve dar
+ * ekranda içeriği daraltıyordu. Yalnızca dikey boşluk
+ * bırakılıyor.
+ */
+@media (max-width: 768px) {
+  .oneri { padding: 0; }
+}
+
+/* ══════════════ MASAÜSTÜ: iki sütun ══════════════ */
+@media (min-width: 769px) {
+  .oneri { margin: 34px 0; }
+  .oneri-baslik { font-size: 18px; margin-bottom: 14px; }
+
+  .oneri-grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 18px;
+    align-items: stretch;
+  }
+
+  /*
+   * ⚠ BÜYÜK GÖRSELİN YÜKSEKLİĞİ SAĞDAKİ ÜÇÜN TOPLAMI.
+   * Eskizdeki temel kural. `aspect-ratio` bunu bozardı:
+   * genişliğe göre yükseklik hesaplar ve sağ sütunla
+   * hizalanmazdı. Grid `stretch` ile iki sütun eşitleniyor,
+   * görsel de kabı dolduruyor.
+   */
+  .oneri-one { height: 100%; }
+  .oneri-one-gorsel {
+    aspect-ratio: auto;
+    height: 100%;
+    min-height: 260px;
+  }
+
+  .oneri-one-katman { padding: 44px 18px 18px; gap: 9px; }
+  .oneri-one-baslik { font-size: 22px; -webkit-line-clamp: 3; }
+  .oneri-one-ozet { font-size: 13px; }
+
+  /* Sağ sütun: 3 haber alt alta, yatay kart */
+  .oneri-liste {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    align-content: stretch;
+  }
+  .oneri-ucuncu { display: block; }
+
+  .oneri-satir {
+    flex-direction: row;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .oneri-satir-gorsel {
+    width: 118px;
+    aspect-ratio: auto;
+    height: auto;
+    min-height: 84px;
+  }
+  .oneri-satir-baslik { font-size: 15px; -webkit-line-clamp: 3; }
+  .oneri-satir-ozet { font-size: 12px; -webkit-line-clamp: 2; }
+}
+
+/* ---- Hesap paneli · mobil ------------------------------------
+   ⚠ Kartlar dar ekranda tam genişlik kaplamalı.
+
+   Masaüstü dolgusu ve köşe yarıçapı mobilde soldan sağdan
+   boşluk bırakıyordu; içerik sıkışıyor, ekranın bir kısmı boşa
+   gidiyordu. Kartlar kenardan kenara uzanıyor, yalnızca iç
+   dolgu kalıyor. */
+@media (max-width: 640px) {
+  .hesap-panel {
+    padding-inline: 0;
+  }
+  .hesap-panel .card,
+  .hesap-panel .kb-card,
+  .hesap-panel section,
+  .hesap-panel .kb-kart {
+    /* Kabın dolgusunu aşarak tam genişliğe uzan */
+    margin-inline: calc(var(--gut) * -1);
+    border-radius: 0;
+    border-inline: none;
+    padding-inline: var(--gut);
+  }
+
+  /* Sol hizalama boşluğu kalmasın: liste ve ızgaralar tam en */
+  .hesap-panel ul,
+  .hesap-panel ol {
+    padding-inline-start: 0;
+    list-style: none;
+  }
+
+  /* Sekmeler yatay kaydırılabilir, sarmasın */
+  .hesap-sekme {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-inline: calc(var(--gut) * -1);
+    padding-inline: var(--gut);
+  }
+  .hesap-sekme::-webkit-scrollbar { display: none; }
+  .hesap-sekme > * { flex-shrink: 0; }
+}
+
+/* Toast girişi — alttan yükselip yerine oturuyor */
+@keyframes kb-toast {
+  from { opacity: 0; transform: translateY(14px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---- Profil kişi kartı · mobil ------------------------------
+   Kapak + avatar kartı dar ekranda kenardan kenara uzanıyor.
+   Ortada dar bir şerit gibi durması kapak fotoğrafını
+   değersizleştiriyordu. */
+@media (max-width: 640px) {
+  .kb-kisi-kart {
+    margin-inline: calc(var(--gut) * -1);
+    border-radius: 0;
+    border-inline: none;
+  }
+}
+
+/* ---- Kart üstü kayıt/beğeni düğmesi -------------------------
+   ⚠ İKONLAR SİYAH ÇİZİM.
+   Koyu temada siyah zeminde siyah ikon görünmüyordu. `filter`
+   ile beyaza çevriliyor — her renk için ayrı dosya tutmaktan
+   daha az bakım. */
+[data-theme="dark"] .kb-kart-dugme img {
+  filter: brightness(0) invert(1);
+}
+.kb-kart-dugme:active { transform: scale(.9); }
+
+/* ---- Şifre penceresi adım geçişi ---------------------------
+   Yeni adım sağdan kayarak geliyor. `cubic-bezier(.32,.72,0,1)`
+   iOS'un kullandığı eğri: hızlı başlayıp yumuşak duruyor. */
+@keyframes kb-adim {
+  from { opacity: 0; transform: translateX(18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ---- Reels: cam düğme --------------------------------------
+   Videonun üstünde duran düğmeler. Arkasındaki görüntü blur ile
+   bulanıklaşıyor; düz yarı saydam siyah, açık videolarda
+   okunmuyordu. */
+.kb-cam {
+  background: rgba(255, 255, 255, .13);
+  backdrop-filter: blur(14px) saturate(1.6);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, .18);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .28);
+  transition: background .16s ease, transform .16s ease;
+}
+.kb-cam:active { transform: scale(.96); }
+@media (hover: hover) {
+  .kb-cam:hover { background: rgba(255, 255, 255, .2); }
+}
+
+/* Eylem rayı düğmeleri — dokunma geri bildirimi */
+.kb-reel-btn { transition: transform .14s cubic-bezier(.2,.9,.25,1.1); }
+.kb-reel-btn:active { transform: scale(.86); }
+
+/* ---- Reels: küçük ekranda ölçek -----------------------------
+   Kısa ekranlarda (yatay telefon, küçük cihaz) yazı ve düğmeler
+   taşıyordu. Kök yazı boyutu küçülünce hepsi orantılı iniyor. */
+@media (max-height: 640px) {
+  .kb-reels-kok { font-size: 92%; }
+}
+@media (max-height: 540px) {
+  .kb-reels-kok { font-size: 84%; }
+}
+
+/* Masaüstünde cam düğme sayfa zemininin üstünde duruyor —
+   videonun değil. Açık temada beyaz cam görünmediği için
+   zemin rengi temayla dönüyor. */
+.kb-cam-acik {
+  background: color-mix(in srgb, var(--s1) 82%, transparent);
+  border-color: var(--bd);
+}
+@media (hover: hover) {
+  .kb-cam-acik:hover { background: var(--s2); }
+}
+
+/* Reels iskelet — yükleniyor kartı */
+.kb-reel-iskelet > div { animation: kb-iskelet 1.3s ease-in-out infinite; }
+@keyframes kb-iskelet { 0%,100% { opacity: .5 } 50% { opacity: .85 } }
+
+/* Reels video yükleme halkası */
+@keyframes kb-doner { to { transform: rotate(360deg); } }
+
+/* ---- Reels: çift dokunuşta uçan kalp ------------------------
+   Parmağın bastığı noktadan başlıyor, yukarı sıçrayıp beğeni
+   düğmesine doğru küçülerek kayboluyor.
+
+   ⚠ Hareket iki aşamalı: önce yerinde büyüyüp sıçrıyor, sonra
+   düğmeye uçuyor. Tek aşamada yapılınca kalp doğrudan köşeye
+   kayıyor ve beğeni hissi vermiyordu. */
+.kb-ucan-kalp {
+  display: block;
+  margin-left: -48px;   /* SVG'nin yarısı — dokunulan nokta merkez olsun */
+  margin-top: -48px;
+  transform-origin: center;
+  animation: kb-kalp-uc .9s cubic-bezier(.22, .8, .28, 1) forwards;
+  filter: drop-shadow(0 6px 20px rgba(0, 0, 0, .35));
+  will-change: transform, opacity;
+}
+
+@keyframes kb-kalp-uc {
+  0%   { transform: translate(0,0) scale(.25) rotate(-12deg); opacity: 0; }
+  14%  { transform: translate(0,0) scale(1.15) rotate(4deg);  opacity: 1; }
+  26%  { transform: translate(0,-14px) scale(1) rotate(0deg); opacity: 1; }
+  /* buradan sonra beğeni düğmesine doğru */
+  100% {
+    transform:
+      translate(var(--kb-dx, 0), var(--kb-dy, -220px))
+      scale(.16) rotate(6deg);
+    opacity: 0;
+  }
+}
+
+/* Hareket azaltma tercihi olanlara sade bir sönme */
+@media (prefers-reduced-motion: reduce) {
+  .kb-ucan-kalp { animation: kb-kalp-sade .5s ease forwards; }
+  @keyframes kb-kalp-sade {
+    0%   { transform: scale(.8); opacity: 0; }
+    30%  { transform: scale(1);  opacity: 1; }
+    100% { transform: scale(1);  opacity: 0; }
+  }
+}
+
+/* ---- Reels tam ekran modu -----------------------------------
+   Sayfa kendini tam ekran yapıyor; başlık, alt bilgi ve mobil
+   sekme çubuğu gizleniyor.
+
+   ⚠ Ara katmandaki `bare` bayrağına GÜVENİLEMİYOR: sayfa içi
+   gezinmede ortak yerleşim yeniden oluşturulmuyor ve bayrak
+   eski değerinde kalıyor. Bu sınıf her iki gezinme türünde de
+   çalışıyor. */
+html.kb-reels-modu > body > header,
+html.kb-reels-modu > body > footer,
+html.kb-reels-modu header,
+html.kb-reels-modu footer,
+html.kb-reels-modu nav[data-tabbar] {
+  display: none !important;
+}
+
+/* Arka plan kaymasın */
+html.kb-reels-modu,
+html.kb-reels-modu body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Ana kapsayıcının genişlik sınırı bu sayfada geçersiz */
+html.kb-reels-modu main {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   HESAP PANELİ — ORTAK DÜĞME VE DÜZEN
+   ══════════════════════════════════════════════════════════════ */
+
+/* ---- Düğmeler -----------------------------------------------
+   ⚠ ÜÇ SORUN VARDI:
+   1. `<a>` etiketleri satır içi olduğu için yazı sola yaslanıyordu
+      — `display:inline-flex` + `justify-content:center` gerekiyor.
+   2. Bazı düğmeler vurgu renginde (kırmızı) idi; panelde her
+      düğme birincil görünüyordu.
+   3. Köşe yarıçapı 10px, kartların 16px yarıçapının yanında
+      sert duruyordu. */
+.kb-acc button,
+.kb-acc .kb-btn,
+.kb-acc a.kb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  text-align: center;
+  border-radius: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* Panelde varsayılan düğme nötr: koyu temada beyaz, açıkta siyah */
+.kb-acc .kb-btn {
+  background: var(--s2);
+  color: var(--tx);
+  border: 1px solid var(--bd);
+  padding: 11px 18px;
+  font-size: 13.5px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .15s ease, transform .12s ease;
+}
+.kb-acc .kb-btn:active { transform: scale(.97); }
+@media (hover: hover) {
+  .kb-acc .kb-btn:hover { background: var(--bd); }
+}
+
+/* Ana eylem — ters renk, yine vurgu kırmızısı değil */
+.kb-acc .kb-btn-ana {
+  background: var(--tx);
+  color: var(--bg);
+  border-color: var(--tx);
+}
+@media (hover: hover) {
+  .kb-acc .kb-btn-ana:hover { opacity: .88; background: var(--tx); }
+}
+
+/* Yıkıcı eylem — yalnızca silme */
+.kb-acc .kb-btn-sil {
+  background: transparent;
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, .35);
+}
+
+/* ---- Masaüstünde genişliği kullan ---------------------------
+   Panel tek sütun dikey diziliyordu ve geniş ekranda sağ taraf
+   boş kalıyordu. Kartlar ızgaraya geçiyor. */
+@media (min-width: 900px) {
+  /*
+   * ⚠ `align-items: start` KART YÜKSEKLİKLERİNİ BOZUYORDU.
+   *
+   * Her kart kendi içeriği kadar uzuyordu; özeti uzun olan
+   * kart yanındakinden yüksek kalıyor, satırlar tırtıklı
+   * görünüyordu. `stretch` ile aynı satırdaki kartlar eşit
+   * yükseklikte.
+   */
+  .kb-acc-izgara {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 14px;
+    align-items: stretch;
+  }
+  .kb-acc-izgara > li { height: 100%; }
+  .kb-acc-tek { grid-column: 1 / -1; }
+}
+
+/*
+ * ⚠ HABERLERİM TEK SÜTUN.
+ *
+ * Diğer listeler iki sütuna sığıyor ama haber kartı kapak +
+ * başlık + rozet + dört eylem düğmesi taşıyor; iki sütunda
+ * sıkışıyor ve düğmeler alt satıra kayıyordu.
+ */
+.kb-acc-tekli { display: grid; gap: 12px; }
+.kb-acc-tekli > li { height: auto; }
+
+/* ---- Haber editörü · masaüstü iki sütun ---------------------
+   Form tek sütun dikey diziliyordu; 1000px üstü ekranlarda
+   sağ taraf boş kalıyor ve yazar sürekli kaydırıyordu.
+
+   `.kb-yan` işaretli alanlar sağ sütuna, kalanı sola gidiyor. */
+@media (min-width: 1000px) {
+  /*
+   * ⚠ İKİ SÜTUNLU GRİD DENENDİ VE VAZGEÇİLDİ.
+   *
+   * `grid-template-columns` iki sütun yapılınca CSS, çocukları
+   * DOM sırasına göre soldan sağa dağıtıyor. Gövde editörü dar
+   * sütuna düşüyor, alanlar birbirine karışıyordu. Hangi alanın
+   * nereye gideceğini tek tek işaretlemek gerekiyordu.
+   *
+   * Bunun yerine: form tek sütun kalıyor ama daha geniş, ve
+   * künye alanları (kategori · şehir · etiket) yan yana
+   * diziliyor. Dikey uzunluk üçte bir azalıyor, düzen bozulma
+   * riski yok.
+   */
+  /*
+   * İKİ GERÇEK SÜTUN KAPSAYICISI.
+   *
+   * ⚠ İLK DENEMEDE HER ALAN AYRI AYRI İŞARETLENMİŞTİ.
+   * `.kb-ana`/`.kb-yan` altı farklı alana tek tek veriliyordu.
+   * CSS grid otomatik yerleştirme bunları DOM sırasına göre
+   * satırlara diziyor, kısa bir alan (başlık) uzun bir alanla
+   * (kapak yükleyici) aynı satıra düşüyor, satır yüksekliği en
+   * uzun öğeye göre şişiyordu — başlıkla özet arasında dev bir
+   * boşluk oluşuyordu.
+   *
+   * Artık `.kb-ana` ve `.kb-yan` her biri TEK BİR sarmalayıcı
+   * div; içindeki alanlar kendi `gap`iyle diziliyor, birbirini
+   * hiç etkilemiyor.
+   */
+  .kb-editor {
+    /*
+     * ⚠ SABİT `max-width: 1240px` KALDIRILDI.
+     * Panelde ana sayfadaki okuma genişliği sınırı geçerli
+     * değil; sütunlar gutter dışında ekranın tamamını kullanıyor.
+     */
+    grid-template-columns: minmax(0, 1.6fr) minmax(320px, 460px);
+    gap: 16px 20px !important;
+    align-items: start;
+  }
+  .kb-editor > .kb-ana { grid-column: 1; }
+  .kb-editor > .kb-yan { grid-column: 2; }
+  .kb-editor > .kb-tam { grid-column: 1 / -1; }
+
+  /* Sağ sütun kartları — Shopify tarzı kutular */
+  .kb-editor > .kb-yan {
+    background: var(--s1);
+    border: 1px solid var(--bd);
+    border-radius: 16px;
+    padding: 16px;
+  }
+}
+
+/*
+ * ⚠ SABİT GENİŞLİK SINIRI TAMAMEN KALDIRILDI.
+ *
+ * "1180px daha geniş" yazıyordu ama yine de bir tavandı — geniş
+ * monitörde panel ekranın ortasında dar bir şerit gibi kalıyordu.
+ * Panel bir okuma sayfası değil; ana sayfadaki %70'lik okuma
+ * genişliği sınırı burada geçerli değil. `.kb-acc` artık
+ * kapsayıcısının (gutter dışında) tüm genişliğini kullanıyor.
+ */
+
+/* ---- Panel · ikonlu yuvarlak düğme -------------------------
+   Kart içindeki ve üst çubuktaki eylemler. Yazı yerine ikon:
+   dar ekranda alt satıra kaymıyor, kart taşmıyor. */
+.kb-ikon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  color: var(--tx);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .15s ease, transform .12s ease;
+}
+.kb-ikon-btn:active { transform: scale(.92); }
+@media (hover: hover) {
+  .kb-ikon-btn:hover { background: var(--bd); }
+}
+.kb-ikon-sil { color: #dc2626; border-color: rgba(220, 38, 38, .3); }
+
+/* ══════════════════════════════════════════════════════════════
+   HABER GÖRÜNTÜLEME SAYFASI — BAŞTAN TASARIM
+
+   Masaüstü: sol ana içerik (~66%) · sağ istatistik sütunu (~34%),
+   ikisi de üst eylem çubuğunun ALTINDA başlıyor.
+   Mobil: tek sütun, uygulama-vari sıralama.
+   ══════════════════════════════════════════════════════════════ */
+
+.kb-detay-ust {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 18px; flex-wrap: wrap;
+}
+.kb-detay-govde { display: grid; gap: 22px; }
+
+@media (min-width: 980px) {
+  .kb-detay-govde {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    align-items: start;
+    gap: 28px;
+  }
+}
+
+.kb-detay-sol { display: grid; gap: 20px; min-width: 0; }
+.kb-detay-sag {
+  display: grid; gap: 16px; min-width: 0;
+  align-content: start;
+}
+/* Sağ sütun masaüstünde kaydırma sırasında sabit kalıyor */
+@media (min-width: 980px) {
+  .kb-detay-sag { position: sticky; top: 20px; }
+}
+
+.kb-detay-yazar {
+  display: flex; align-items: center; gap: 10px;
+}
+.kb-detay-icerik p {
+  font-size: 15.5px; line-height: 1.75; color: var(--tx);
+  margin: 0 0 14px;
+  overflow-wrap: anywhere;
+}
+.kb-detay-icerik h3 {
+  font-size: 18px; font-weight: 800; margin: 22px 0 10px;
+}
+
+/* İstatistik sayaç kartları — sağ sütunda 2x2 */
+.kb-detay-sayac {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* Yorum satırı — sabit yükseklikte avatar rozeti + gövde */
+.kb-detay-yorum {
+  display: flex; gap: 11px; align-items: flex-start;
+  padding: 13px 0;
+  border-top: 1px solid var(--bd);
+}
+.kb-detay-yorum:first-child { border-top: none; }
+
+/* Hizmetler açılır kutusu — düğmenin altından iniyor */
+@keyframes kb-dropdown {
+  from { opacity: 0; transform: translateY(-6px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---- Kurumsal bilgi satırı ---------------------------------
+   Etiket solda sabit genişlikte, değer sağda. Dar ekranda
+   alt alta geçiyor — yan yana sıkışınca uzun adresler
+   okunmuyordu. */
+.kb-kurumsal-satir { display: grid; gap: 2px; }
+
+@media (min-width: 560px) {
+  .kb-kurumsal-satir {
+    grid-template-columns: 210px minmax(0, 1fr);
+    gap: 14px;
+    align-items: baseline;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FOOTER ALT SATIRI
+
+   ⚠ MOBİLDE HİZA BOZUKTU.
+   Bağlantılar, sosyal düğmeler ve telif tek bir `flex-wrap`
+   satırındaydı; dar ekranda `marginInlineStart: auto` yüzünden
+   telif ortada bir yere savruluyor, bağlantılar düzensiz
+   sarıyordu.
+
+   Artık üç ayrı blok: masaüstünde tek satır (sosyal · linkler ·
+   telif), mobilde alt alta ve sola hizalı.
+   ══════════════════════════════════════════════════════════════ */
+.kb-footer-alt {
+  display: grid;
+  gap: 16px;
+}
+
+.kb-footer-linkler {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.kb-footer-linkler a { color: var(--mu); text-decoration: none; }
+@media (hover: hover) {
+  .kb-footer-linkler a:hover { color: var(--tx); }
+}
+
+.kb-footer-telif {
+  font-size: 12.5px;
+  color: var(--mu);
+  font-weight: 500;
+}
+
+/* Masaüstü: tek satır, sosyal başta, telif sonda */
+@media (min-width: 860px) {
+  .kb-footer-alt {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 22px;
+  }
+  .kb-footer-sosyal { order: 0; }
+  .kb-footer-linkler { order: 1; }
+  .kb-footer-telif { order: 2; text-align: end; white-space: nowrap; }
+}
+
+/*
+ * Mobil: sosyal düğmeler bağlantıların ALTINDA.
+ * Üstte olsalardı, footer'a inen okur önce sekiz yuvarlak
+ * düğmeyle karşılaşıyor, aradığı "İletişim" bağlantısı
+ * aşağıda kalıyordu.
+ */
+@media (max-width: 859px) {
+  .kb-footer-sosyal { order: 2; }
+  .kb-footer-linkler {
+    order: 1;
+    gap: 12px 18px;
+  }
+  .kb-footer-telif {
+    order: 3;
+    padding-top: 4px;
+    border-top: 1px solid var(--bd);
+  }
+  .kb-footer-alt { gap: 14px; }
+}
+
+/* ---- Yan sütunsuz akış · geniş ekranda iki kolon ------------
+   Yazar ve yayıncı sayfalarında kullanılıyor. Kart tasarımı
+   ana sayfadakiyle aynı; yalnızca dizilim değişiyor. Tek
+   kolonda kart tüm genişliğe gerilip orantısını kaybediyordu. */
+@media (min-width: 1100px) {
+  .kb-akis-izgara {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+/* ---- Footer kart şeridi -------------------------------------
+   Masaüstünde mağaza kartları önce, ihbar hattı sonda.
+   Mobilde ihbar hattı en üstte — footer'a inen okurun ilk
+   göreceği şey acil iletişim olsun. */
+/*
+ * ⚠ MOBİLDE TAM GENİŞLİK DEĞİL, İKİLİ IZGARA.
+ *
+ * Kartlar `width: 100%` ile alt alta uzuyordu: üç dev şerit
+ * footer'ın yarısını kaplıyor ve iç dolgusu dar kaldığı için
+ * bomboş görünüyordu.
+ *
+ * İkili ızgara hem simetrik hem de kartlara nefes veriyor.
+ * İhbar hattı tek başına tam satır — tek sayıda kart kalınca
+ * yarım boşluk oluşmasın ve acil iletişim belirgin dursun.
+ */
+@media (max-width: 700px) {
+  .kb-footer-kartlar {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  /*
+   * ⚠ LOGO VE YAZI YAN YANA.
+   * Bir ara `flex-direction: column` denendi; logo üstte,
+   * yazı altta kalıyordu ve kartlar gereksiz uzuyordu.
+   * Yatay dizilim hem daha kompakt hem masaüstüyle tutarlı.
+   */
+  .kb-footer-kartlar > a {
+    padding: 13px 14px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  /*
+   * İHBAR HATTI — MOBİL
+   *
+   * ⚠ ÖNCEKİ DENEMEDE İKON YAZIDAN KOPUKTU.
+   * İkon kendi grid hücresinde ortalanıyor, etiket başka
+   * hücrede duruyordu; ikisi arasında rastgele bir boşluk
+   * oluşuyordu.
+   *
+   * Şimdi iki satırlı grid:
+   *   1. satır → ikon ve etiket YAN YANA, birlikte ortalı
+   *   2. satır → numara, iki sütunu birden kaplıyor
+   *
+   * `kb-wa-metin` `display: contents` ile saydamlaşıyor;
+   * içindeki etiket ve numara doğrudan grid'e katılıyor.
+   */
+  .kb-footer-wa {
+    order: -1;
+    grid-column: 1 / -1;
+    display: grid !important;
+    grid-template-columns: auto auto;
+    justify-content: center;
+    align-items: center;
+    /* Satırlar arası — etiketle numara arası sıkışıktı */
+    row-gap: 10px !important;
+    column-gap: 9px !important;
+    padding: 30px 20px !important;
+    border-radius: 20px !important;
+    text-align: center;
+  }
+
+  .kb-footer-wa .kb-wa-metin { display: contents; }
+
+  .kb-footer-wa .kb-wa-ikon {
+    grid-row: 1;
+    grid-column: 1;
+    justify-self: end;
+    height: 19px !important;
+    min-width: 19px !important;
+  }
+
+  .kb-footer-wa .kb-wa-etiket {
+    grid-row: 1;
+    grid-column: 2;
+    justify-self: start;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    /*
+     * ⚠ ETİKET BEYAZ, İKON VE NUMARA YEŞİL.
+     * Üçü birden yeşil olunca yazı numaranın önüne geçiyor ve
+     * göz nereye bakacağını bilemiyordu.
+     */
+    color: var(--tx) !important;
+    margin: 0 !important;
+  }
+
+  .kb-footer-wa .kb-wa-numara {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    justify-self: center;
+    margin-top: 0 !important;
+    font-size: clamp(27px, 8.5vw, 38px) !important;
+    font-weight: 800 !important;
+    letter-spacing: .05em;
+    color: #25D366 !important;
+    white-space: nowrap;
+  }
+
+  /* Mobilde etiket tam adıyla */
+  .kb-footer-wa .kb-wa-etiket::after {
+    content: " İhbar Hattı";
+  }
+}
+
+/* Çok dar ekranda ikili ızgara da sıkışıyor — tek sütun */
+@media (max-width: 400px) {
+  .kb-footer-kartlar { grid-template-columns: 1fr; }
+}
+
+/* ---- Şehir sayfası · hava durumu yerleşimi ------------------
+   Masaüstünde sağ sütun, mobilde en üstte ve kısaltılmış. */
+@media (max-width: 900px) {
+  .kb-sehir-hava { order: -1; width: 100%; }
+  .kb-sehir-ana  { order: 1; }
+
+  /*
+   * Mini görünüm: kart en üstte durduğu için tam boyu ekranı
+   * kaplıyordu. Günlük tahmin şeridi gizleniyor, dolgu ve
+   * yazı boyları küçülüyor — o an gereken bilgi (şu anki
+   * sıcaklık ve durum) kalıyor.
+   */
+  /*
+   * ⚠ DAHA DA KÜÇÜLDÜ.
+   * İlk denemede yalnızca tahmin şeridi gizlenmişti; kart hâlâ
+   * ekranın üçte birini kaplıyordu. Kart en üstte durduğu için
+   * haberlere ulaşmayı geciktiriyordu.
+   *
+   * Artık tek satırlık bir şerit: ikon, derece ve durum yan
+   * yana; başlık ve hissedilen/nem satırı gizli.
+   */
+  .kb-sehir-hava [data-hava-gunler] { display: none; }
+  .kb-sehir-hava [data-hava-kart] { padding: 11px 14px !important; }
+  .kb-sehir-hava [data-hava-derece] { font-size: 24px; }
+  .kb-sehir-hava [data-hava-ikon] svg { width: 26px; height: 26px; }
+  .kb-sehir-hava [data-hava-detay] { font-size: 11.5px !important; margin-top: 2px !important; }
+  .kb-sehir-hava [data-hava-baslik] { margin-bottom: 6px !important; font-size: 10.5px; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DEPREM TAKİP
+
+   Masaüstü: solda harita, sağda liste (referans tasarım).
+   Mobil: harita üstte sabit yükseklikte, liste altında akıyor.
+   ══════════════════════════════════════════════════════════════ */
+.kb-deprem {
+  display: grid;
+  gap: 14px;
+  position: relative;
+}
+
+.kb-deprem-harita {
+  position: relative;
+  /*
+   * ⚠ HARİTA HER ŞEYİN ÜSTÜNE ÇIKIYORDU.
+   *
+   * Leaflet kendi denetimlerine ve katmanlarına 400–1000 arası
+   * `z-index` veriyor; sitenin header'ı 120, hizmet panelleri
+   * 190. Harita bunların hepsinin üstüne biniyordu.
+   *
+   * `isolation: isolate` yeni bir yığın bağlamı açıyor: Leaflet'in
+   * içerideki değerleri artık yalnızca bu kutunun içinde geçerli
+   * ve dışarıyla yarışmıyor. Haritanın kendi katman sırası
+   * bozulmuyor.
+   */
+  isolation: isolate;
+  z-index: 0;
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: 18px;
+  overflow: hidden;
+  /*
+   * ⚠ SABİT YÜKSEKLİK, `aspect-ratio` DEĞİL.
+   * Oran verilince dar ekranda harita çok kısalıyor ve
+   * noktalar üst üste biniyordu.
+   *
+   * Gerçek haritaya geçince yükseklik de arttı: 240px'te
+   * yakınlaştırma denetimleri ve noktalar sıkışıyordu.
+   */
+  height: 320px;
+}
+
+.kb-deprem-leaflet {
+  width: 100%;
+  height: 100%;
+  /* Yığın bağlamı burada da kapatılıyor — iç içe güvenlik */
+  isolation: isolate;
+  /* Leaflet kendi zeminini basıyor; kart köşeleri korunuyor */
+  border-radius: 18px;
+}
+.kb-deprem-yukleniyor {
+  background: var(--s2);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/*
+ * ⚠ LEAFLET KENDİ STİLLERİNİ GETİRİYOR.
+ * Varsayılan görünüm sitenin temasıyla uyuşmuyor: beyaz
+ * kutular, mavi bağlantılar, kalın gölgeler. Sadeleştiriliyor.
+ */
+.kb-deprem-leaflet .leaflet-control-zoom a {
+  background: var(--s1);
+  color: var(--tx);
+  border-color: var(--bd);
+  width: 32px;
+  height: 32px;
+  line-height: 32px;
+  font-size: 17px;
+}
+.kb-deprem-leaflet .leaflet-control-zoom {
+  border: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 12px;
+}
+.kb-deprem-leaflet .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  color: var(--mu);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 8px 0 0 0;
+}
+.kb-deprem-leaflet .leaflet-control-attribution a { color: var(--mu); }
+.kb-deprem-leaflet .leaflet-tooltip {
+  background: var(--s1);
+  color: var(--tx);
+  border: 1px solid var(--bd);
+  border-radius: 9px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .2);
+  font-size: 12.5px;
+  padding: 5px 9px;
+}
+.kb-deprem-leaflet .leaflet-tooltip-top::before { border-top-color: var(--bd); }
+
+.kb-deprem-ozet {
+  position: absolute;
+  inset-inline-start: 14px;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mu);
+}
+.kb-deprem-ozet b { color: var(--tx); font-weight: 800; }
+
+.kb-deprem-liste {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.kb-deprem-suzgec {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--bd);
+  /* Süzgeçler liste kayarken sabit kalıyor */
+  flex-shrink: 0;
+}
+.kb-deprem-suzgec select {
+  width: 100%;
+  height: 42px;
+  /* Seçim kutusunun oku ile metin çakışmasın */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: none;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--bd);
+  background: var(--s2);
+  color: var(--tx);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.kb-deprem-etiket {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--mu);
+  margin-bottom: 6px;
+}
+
+/* Segment anahtarı — referanstaki gibi tek kutu içinde */
+.kb-deprem-segment {
+  display: flex;
+  gap: 4px;
+  background: var(--s2);
+  border-radius: 13px;
+  padding: 4px;
+}
+.kb-deprem-segment button {
+  /*
+   * ⚠ YAZI SOLA YASLANIYORDU.
+   * `<button>` varsayılan olarak `display: inline-block` ve
+   * metni ortalıyor gibi görünse de, `flex: 1` ile genişleyen
+   * düğmelerde satır kutusu sola yaslanıyordu. `inline-flex` +
+   * `center` ile hem yatay hem dikey ortalanıyor.
+   */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  /*
+   * ⚠ `flex: 1` TEK BAŞINA YETMİYORDU.
+   *
+   * `min-width` varsayılanı `auto`; içerik düğmeden genişse
+   * flex onu küçültemiyor ve düğmeler kutudan taşıyordu
+   * ("24 saat" gibi uzun etiketlerde). `min-width: 0` bunu
+   * çözüyor.
+   *
+   * `padding: 0` de gerekli: tarayıcının varsayılan yatay
+   * dolgusu dar ekranda genişliği şişiriyordu.
+   */
+  flex: 1 1 0;
+  min-width: 0;
+  height: 34px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--mu);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background .15s ease, color .15s ease;
+}
+.kb-deprem-segment button.aktif {
+  background: var(--bg);
+  color: var(--tx);
+}
+
+.kb-deprem-kayitlar {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kb-deprem-kart {
+  /* Kart içi metin bloğu sola, ama kartın kendisi hizalı */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+  color: var(--tx);
+  cursor: pointer;
+  text-align: start;
+  transition: background .14s ease;
+}
+.kb-deprem-kart.aktif {
+  background: var(--s2);
+  border-color: var(--bd);
+}
+@media (hover: hover) {
+  .kb-deprem-kart:hover { background: var(--s2); }
+}
+
+.kb-deprem-mag {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  font-size: 16px;
+  font-weight: 800;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.kb-deprem-metin { min-width: 0; flex: 1; }
+.kb-deprem-yer {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kb-deprem-alt {
+  display: block;
+  font-size: 12px;
+  color: var(--mu);
+  margin-top: 3px;
+}
+
+.kb-deprem-iskelet {
+  height: 68px;
+  border-radius: 13px;
+  background: var(--s2);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.kb-deprem-bos {
+  padding: 30px 16px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--mu);
+}
+
+.kb-deprem-kaynak {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--bd);
+  font-size: 11.5px;
+  color: var(--mu);
+  margin: 0;
+}
+
+
+/* ---- Masaüstü: yan yana ---- */
+@media (min-width: 1000px) {
+  .kb-deprem {
+    grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr);
+    gap: 16px;
+    /* Liste kendi içinde kayıyor, sayfa değil */
+    height: min(700px, calc(100dvh - 200px));
+  }
+  .kb-deprem-harita { height: 100%; }
+
+  /* Masaüstünde süzgeçler yan yana sığıyor */
+  .kb-deprem-suzgec {
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+  }
+  .kb-deprem-suzgec > select { grid-column: 1 / -1; }
+}
+
+
+/* ---- Harita koyu tema -------------------------------------
+   OpenStreetMap yalnızca açık karo sunuyor (CARTO'nun koyu
+   karosu artık API anahtarı istiyor). Süzgeç ile koyulaştırılıyor:
+   renkler ters çevrilip tonu düzeltiliyor — ağ isteği yok. */
+.kb-deprem-koyu .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.92) saturate(.7);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DEPREM AYRINTI PANELİ
+   Masaüstünde sağdan, mobilde alttan.
+   ══════════════════════════════════════════════════════════════ */
+.kb-detay-perde {
+  position: fixed;
+  inset: 0;
+  /*
+   * Harita artık kendi bağlamında; panel yalnızca sayfa
+   * içeriğinin üstünde olmalı, header'ın değil.
+   */
+  z-index: 190;
+  background: rgba(0, 0, 0, .5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .26s ease;
+}
+.kb-detay-perde.acik { opacity: 1; pointer-events: auto; }
+
+.kb-deprem-detay {
+  position: fixed;
+  z-index: 200;
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+/* Mobil: alttan açılıyor, aşağı doğru kapanıyor */
+@media (max-width: 899px) {
+  .kb-deprem-detay {
+    inset-inline: 0;
+    bottom: 0;
+    max-height: 78dvh;
+    border-radius: 22px 22px 0 0;
+    padding: 8px 18px calc(22px + env(safe-area-inset-bottom));
+    transform: translateY(100%);
+    transition: transform .3s cubic-bezier(.32, .72, 0, 1);
+  }
+  .kb-deprem-detay.acik { transform: translateY(0); }
+}
+
+/* Masaüstü: sağdan kayıyor */
+@media (min-width: 900px) {
+  .kb-deprem-detay {
+    top: 0;
+    bottom: 0;
+    inset-inline-end: 0;
+    width: min(400px, 92vw);
+    border-radius: 0;
+    padding: 22px;
+    transform: translateX(100%);
+    transition: transform .28s cubic-bezier(.32, .72, 0, 1);
+  }
+  /* RTL dillerde soldan gelmeli */
+  [dir="rtl"] .kb-deprem-detay { transform: translateX(-100%); }
+  .kb-deprem-detay.acik { transform: translateX(0); }
+  .kb-deprem-detay-tutamak { display: none; }
+}
+
+.kb-deprem-detay-tutamak {
+  display: grid;
+  place-items: center;
+  padding: 6px 0 4px;
+  flex-shrink: 0;
+}
+.kb-deprem-detay-tutamak span {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--bd);
+}
+
+.kb-deprem-detay-ust {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.kb-deprem-detay-mag {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  font-size: 18px;
+  font-weight: 800;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.kb-deprem-detay-yer {
+  flex: 1;
+  min-width: 0;
+  font-size: 15.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.kb-deprem-detay-kapat {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--bd);
+  background: var(--s2);
+  color: var(--tx);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.kb-deprem-detay-liste {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+}
+.kb-deprem-detay-liste > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--bd);
+}
+.kb-deprem-detay-liste > div:last-child { border-bottom: none; }
+.kb-deprem-detay-liste dt {
+  font-size: 13px;
+  color: var(--mu);
+  flex-shrink: 0;
+}
+.kb-deprem-detay-liste dd {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+.kb-deprem-detay-dis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  height: 46px;
+  border-radius: 14px;
+  background: var(--tx);
+  color: var(--bg);
+  font-size: 14.5px;
+  font-weight: 700;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   AKIŞ ARASI WIDGET'LAR
+
+   ┌─ MOBİLDE YAN SÜTUN EN ALTA DÜŞÜYORDU ⚠️ ──────────────────┐
+   │ Masaüstünde widget'lar haberlerin yanında. Mobilde o sütun│
+   │ akışın altına iniyor: okur onlarca haberi geçmeden piyasa,│
+   │ namaz ya da deprem bilgisini hiç görmüyordu.               │
+   │                                                              │
+   │ Aynı widget'lar iki yerde basılıyor; burada hangisinin     │
+   │ görüneceği belirleniyor. İkisi aynı anda ASLA görünmüyor.  │
+   └──────────────────────────────────────────────────────────────┘
+   ══════════════════════════════════════════════════════════════ */
+
+/* Masaüstü: yan sütun görünür, akış arası gizli */
+.kb-akis-ara { display: none; }
+
+@media (max-width: 899px) {
+  .kb-akis-ara {
+    display: block;
+    margin: 18px 0;
+  }
+
+  /*
+   * Yan sütunun kendisi gizlenmiyor — içinde bülten ve reklam
+   * gibi mobilde de gereken şeyler var. Yalnızca akışa taşınan
+   * widget'lar gizleniyor.
+   */
+  .kb-yan-sutun > .kb-yan-widget { display: none; }
+}
+
+
+/* ---- Hareketli çizgi deseni ----------------------------------
+   Sürekli akan ince eğik çizgiler. Kontrast bilerek çok düşük:
+   arka planda kalmalı, yazıyı okumayı zorlaştırmamalı. */
+
+@keyframes kb-app-kay {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(0, 22px, 0); }
+}
+
+/* Hareket hassasiyeti olan okurlar için durduruluyor */
+
+
+
+
+
+
+/* Panelde rozet görseli yoksa okunur bir metin düğmesi */
+
+/* ---- Görsel ---------------------------------------------------
+   ⚠ ALTA SIFIR YAPIŞIYOR.
+   `align-self: flex-end` + `display: block` şart; satır içi
+   görsel altında birkaç piksel boşluk bırakıyor ve "yapışık"
+   görünüm bozuluyordu. */
+
+/* ---- Mobil ----------------------------------------------------
+   Başlık, rozetler, sonra görsel — görsel kutunun en altına
+   değiyor. */
+
+/* ══════════════════════════════════════════════════════════════
+   BENZER HABERLER — yorumların altında
+
+   ⚠ İSKELET VE GERÇEK KART AYNI ÖLÇÜDE.
+   Aynı sınıflar paylaşılıyor; veri gelince yerleşim zıplamıyor.
+   ══════════════════════════════════════════════════════════════ */
+.kb-benzer { margin-top: 34px; }
+
+.kb-benzer-baslik {
+  margin: 0 0 16px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.kb-benzer-izgara {
+  display: grid;
+  gap: 18px 16px;
+  /* Mobilde iki, masaüstünde üç sütun */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 900px) {
+  .kb-benzer-izgara { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.kb-benzer-kart {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  color: var(--tx);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.kb-benzer-gorsel {
+  display: block;
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: 13px;
+  overflow: hidden;
+  background: var(--s2);
+}
+.kb-benzer-gorsel img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.kb-benzer-metin {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.36;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+
+  /*
+   * ⚠ ALT ÇİZGİ ÜSTÜNE GELİNCE.
+   * `text-decoration` doğrudan verilirse satır kırpma ile
+   * çakışıyor; `underline` ancak etkileşimde açılıyor.
+   */
+  text-decoration: underline transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color .16s ease;
+}
+
+@media (hover: hover) {
+  .kb-benzer-kart:hover .kb-benzer-metin {
+    text-decoration-color: currentColor;
+  }
+}
+/* Dokunmatikte basılı tutunca da geri bildirim */
+.kb-benzer-kart:active .kb-benzer-metin,
+.kb-benzer-kart:focus-visible .kb-benzer-metin {
+  text-decoration-color: currentColor;
+}
+
+.kb-benzer-zaman {
+  font-size: 12px;
+  color: var(--mu);
+}
+
+/* ---- İskelet ---- */
+.kb-benzer-satir {
+  display: block;
+  height: 13px;
+  border-radius: 6px;
+  background: var(--s2);
+}
+.kb-benzer-satir.kisa { width: 45%; height: 11px; }
+.kb-benzer-yukleniyor { animation: kb-iskelet 1.2s ease-in-out infinite; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   UYGULAMA TANITIM BLOĞU
+
+   Masaüstünde iki sütun: solda başlık ve mağaza kartları,
+   sağda telefon görseli. Mobilde alt alta.
+
+   ⚠ GÖRSEL ALTA SIFIR YASLANIYOR.
+   Telefon görselinin altı bloğun altıyla çakışıyor; boşluk
+   kalırsa görsel "havada" duruyor ve tasarım bozuluyor.
+   ══════════════════════════════════════════════════════════════ */
+.kb-app-tanitim {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 22px;
+  margin: 26px 0;
+
+  /*
+   * ⚠ TEMAYA GÖRE TERSLENİYOR.
+   * Açık temada koyu blok, koyu temada açık blok. Blok her iki
+   * durumda da sayfadan ayrışıyor ve dikkat çekiyor.
+   */
+  background: #0B0B0C;
+  color: #FFFFFF;
+}
+[data-theme="dark"] .kb-app-tanitim {
+  background: #F4F5F7;
+  color: #0B0B0C;
+}
+
+/* ---- Hareketli çizgi deseni ---- */
+.kb-app-desen {
+  position: absolute;
+  inset: -40%;
+  z-index: 0;
+  pointer-events: none;
+  /*
+   * İnce eğik çizgiler. Opaklık düşük: desen fark edilir ama
+   * yazıyı okumayı zorlaştırmaz.
+   */
+  background-image: repeating-linear-gradient(
+    115deg,
+    currentColor 0 1px,
+    transparent 1px 22px
+  );
+  opacity: .06;
+  animation: kb-app-kay 28s linear infinite;
+}
+@keyframes kb-app-kay {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-22%, 12%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Hareket hassasiyeti olan okur için desen sabit */
+  .kb-app-desen { animation: none; }
+}
+
+.kb-app-icerik {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 22px;
+  align-items: end;
+}
+
+.kb-app-sol {
+  padding: 34px 26px 30px;
+  display: grid;
+  gap: 22px;
+  align-content: center;
+}
+
+/*
+ * ⚠ BAŞLIK YOKSA DÜZEN TOPARLANIYOR.
+ * Başlık kaldırılınca kartlar üstte tek başına asılı kalıyordu.
+ * Dikey olarak ortalanıyor ve dolgu dengeleniyor — simetri
+ * korunuyor.
+ */
+.kb-app-sol.kb-app-basliksiz {
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+  padding-block: 40px;
+}
+.kb-app-sol.kb-app-basliksiz .kb-app-rozetler { justify-content: center; }
+
+.kb-app-baslik {
+  margin: 0;
+  /*
+   * ⚠ ÖZEL YAZI TİPİ.
+   * `Wise` public/fonts altındaki dosyadan geliyor (FontFaces
+   * bileşeni üretiyor). Dosya yoksa listedeki sıradaki tip
+   * devreye giriyor, başlık yine düzgün görünüyor.
+   */
+  /*
+   * `--font-vurgu` FontFaces tarafından çalışma anında
+   * yazılıyor: public/fonts içindeki gövde dışı ilk aile.
+   * Dosya adına bağımlı değil.
+   */
+  font-family: var(--font-vurgu, "Wise"), "Yahoo Sans", Inter, system-ui, sans-serif;
+  font-size: clamp(26px, 5.2vw, 40px);
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -.02em;
+}
+
+/* ---- Mağaza kartları ---- */
+.kb-app-rozetler {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.kb-app-rozet {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  text-decoration: none;
+
+  /*
+   * ⚠ ÇERÇEVE YOK.
+   * Footer'daki kartlarda çerçeve var çünkü orada zemin sayfayla
+   * aynı. Burada blok zaten koyu; çerçeve gereksiz çizgi
+   * ekliyordu.
+   */
+  border: none;
+  background: #FFFFFF;
+  color: #0B0B0C;
+  transition: transform .16s ease;
+}
+[data-theme="dark"] .kb-app-rozet {
+  background: #0B0B0C;
+  color: #FFFFFF;
+}
+.kb-app-rozet:active { transform: scale(.97); }
+
+.kb-app-rozet-logo {
+  display: grid;
+  place-items: center;
+  height: 24px;
+  min-width: 24px;
+  flex-shrink: 0;
+}
+.kb-app-rozet-logo img {
+  height: 24px;
+  width: auto;
+  display: block;
+}
+
+.kb-app-rozet-yazi {
+  display: grid;
+  line-height: 1.15;
+  min-width: 0;
+}
+.kb-app-rozet-yazi span {
+  font-size: 10.5px;
+  opacity: .68;
+  white-space: nowrap;
+}
+.kb-app-rozet-yazi strong {
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* ---- Telefon görseli ---- */
+.kb-app-sag {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  /* Alta sıfır: boşluk bırakılmıyor */
+  padding: 0 20px;
+}
+.kb-app-sag img {
+  display: block;
+  width: 100%;
+  max-width: 340px;
+  height: auto;
+  /* Görselin altı bloğun altıyla çakışıyor */
+  margin-bottom: -2px;
+}
+
+/* ---- Masaüstü: iki sütun ---- */
+@media (min-width: 900px) {
+  .kb-app-icerik {
+    grid-template-columns: 1fr minmax(0, 46%);
+    gap: 0;
+  }
+  .kb-app-sol { padding: 46px 44px; }
+  .kb-app-sag { justify-content: flex-end; padding: 0 40px 0 0; }
+  .kb-app-sag img { max-width: 400px; }
+}
+
+/* ---- Mobil: başlık, kartlar, görsel ---- */
+@media (max-width: 899px) {
+  .kb-app-tanitim { border-radius: 20px; }
+  .kb-app-icerik { grid-template-columns: 1fr; gap: 0; }
+  .kb-app-sol {
+    padding: 30px 22px 24px;
+    justify-items: center;
+    text-align: center;
+  }
+  .kb-app-rozetler { justify-content: center; }
+  .kb-app-sag { padding: 0 24px; }
+  .kb-app-sag img { max-width: 300px; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   HESAP LİSTELERİ — MOBİL KENAR BOŞLUĞU
+
+   ┌─ KARTLAR KENARA YAPIŞIYORDU ⚠️ ────────────────────────────┐
+   │ Kaydedilenler ve beğenilenler dar ekranda ekranın iki      │
+   │ kenarına değiyordu: hem sıkışık görünüyor hem de kaydırma  │
+   │ sırasında karta yanlışlıkla basılıyordu.                    │
+   │                                                              │
+   │ Panelin kendi liste görünümündeki gibi nefes payı          │
+   │ bırakılıyor.                                                 │
+   └──────────────────────────────────────────────────────────────┘
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .kb-acc-izgara {
+    padding-inline: 14px;
+    gap: 12px;
+  }
+}
+
+/* ---- Liste yükleme iskeleti ---------------------------------
+   Gerçek kartla aynı yükseklikte: veri gelince sayfa zıplamıyor. */
+.kb-acc-iskelet {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+@media (min-width: 769px) {
+  .kb-acc-iskelet {
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 14px;
+  }
+}
+@media (max-width: 768px) {
+  .kb-acc-iskelet { padding-inline: 14px; gap: 12px; }
+}
+
+.kb-acc-iskelet > li {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--s1);
+  border: 1px solid var(--bd);
+}
+.kb-acc-iskelet .kb-isk-gorsel {
+  width: 92px;
+  height: 68px;
+  border-radius: 11px;
+  flex-shrink: 0;
+}
+.kb-acc-iskelet .kb-isk-metin {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.kb-acc-iskelet span[class^="kb-isk"] {
+  background: var(--s3);
+  border-radius: 7px;
+  animation: kb-iskelet 1.2s ease-in-out infinite;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   TANITIM + DEPREM SATIRI
+
+   ⚠ İKİNCİ SÜTUN VARSA BÖLÜNÜYOR.
+   `:has()` ile ikinci çocuk denetleniyor: deprem hizmeti
+   kapalıysa tanıtım tam genişlik kalıyor, boş sütun açılmıyor.
+   ══════════════════════════════════════════════════════════════ */
+.kb-tanitim-satir {
+  display: grid;
+  gap: var(--g, 16px);
+  align-items: stretch;
+}
+
+@media (min-width: 1000px) {
+  /*
+   * ⚠ `:has()` YERİNE AÇIK SINIF.
+   * Sütun sayısına sunucu karar veriyor (`kb-iki-sutun`);
+   * CSS'in içerik denetlemesine güvenilmiyor.
+   *
+   * Tanıtım daha geniş pay alıyor: içinde başlık, kartlar ve
+   * görsel var, dar sütunda sıkışıyordu.
+   */
+  .kb-tanitim-satir.kb-iki-sutun {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  }
+}
+
+/* Satırdaki iki kutu da aynı yüksekliği paylaşıyor */
+.kb-tanitim-satir > * { min-width: 0; }
+.kb-tanitim-satir > .kb-app-tanitim { margin: 26px 0; }
+.kb-tanitim-satir > section:not(.kb-app-tanitim) {
+  margin: 26px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * ⚠ DAR SÜTUNDA TANITIM DÜZENİ DEĞİŞİYOR.
+ * Yarım genişlikte iki sütunlu iç düzen (yazı solda, görsel
+ * sağda) fazla sıkışıyordu; alt alta geçiyor.
+ */
+@media (min-width: 900px) and (max-width: 1319px) {
+  .kb-tanitim-satir .kb-app-icerik { grid-template-columns: 1fr; }
+  .kb-tanitim-satir .kb-app-sol {
+    padding: 32px 26px 24px;
+    justify-items: center;
+    text-align: center;
+  }
+  .kb-tanitim-satir .kb-app-rozetler { justify-content: center; }
+  .kb-tanitim-satir .kb-app-sag { justify-content: center; padding: 0 24px; }
+  .kb-tanitim-satir .kb-app-sag img { max-width: 280px; }
+}
