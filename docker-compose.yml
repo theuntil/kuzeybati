@@ -1,0 +1,148 @@
+# =============================================================
+#  KUZEYBATI HABER — SİTE (Dokploy Compose)
+#
+#  Bot ve AI servisi AYRI compose dosyalarında. Bu servis
+#  sadece okur; ne feed'e ne R2'ye yazar.
+# =============================================================
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_CDN_BASE: ${NEXT_PUBLIC_CDN_BASE}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+    restart: unless-stopped
+    env_file:
+      - .env
+    # ┌─ BU LİSTE BEYAZ LİSTEDİR ⚠️ ────────────────────────────┐
+    # │ Burada YAZMAYAN bir değişken, Dokploy'un Environment      │
+    # │ sekmesine girilse bile konteynere ULAŞMAZ. Yeni değişken  │
+    # │ eklerken BURAYA DA EKLE.                                   │
+    # └────────────────────────────────────────────────────────────┘
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+
+      # ---- Supabase (çalışma anında, NEXT_PUBLIC_ öneki YOK) ----
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SITE_URL: ${SITE_URL:-https://kuzeybatihaber.com.tr}
+      CDN_BASE: ${CDN_BASE:-https://medya.kuzeybatihaber.com.tr}
+
+      # ---- Cloudflare R2 (avatar, yazar görselleri) ----
+      # ⚠ SUNUCUDA kalır; tarayıcıya hiç gitmez.
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_BUCKET: ${S3_BUCKET:-haber-medya}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+
+      # ---- Mail servisi ----
+      MAIL_API_URL: ${MAIL_API_URL:-}
+      MAIL_API_KEY: ${MAIL_API_KEY:-}
+
+      # ---- ISR yeniden doğrulama ----
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
+
+      # ---- Dış servisler ----
+      SKOR_API_URL: ${SKOR_API_URL:-}
+      SKOR_API_KEY: ${SKOR_API_KEY:-}
+
+      # ---- Piyasa (döviz, altın, kripto) ----
+      # ⚠ BEYAZ LİSTEDE OLMAYAN DEĞİŞKEN ULAŞMIYOR.
+      # Dokploy'un Environment sekmesine girilse bile buraya
+      # yazılmadıkça konteyner göremiyor; piyasa bölümü
+      # sessizce boş kalıyordu.
+      PIYASA_API_URL: ${PIYASA_API_URL:-}
+      PIYASA_API_KEY: ${PIYASA_API_KEY:-}
+      ECZANE_API_URL: ${ECZANE_API_URL:-}
+      ECZANE_API_KEY: ${ECZANE_API_KEY:-}
+      PRAYER_METHOD: ${PRAYER_METHOD:-13}
+    # ┌─ PORT YAYINLANMIYOR ⚠️ ─────────────────────────────────────┐
+    # │ `ports: 3000:3000` sunucunun 3000 portunu işgal ediyordu.  │
+    # │ Aynı VPS'te başka bir servis (bot, mail, eski sürüm) o     │
+    # │ portu tutuyorsa dağıtım "port is already allocated" ile     │
+    # │ düşüyor.                                                      │
+    # │                                                              │
+    # │ Dokploy önünde Traefik var: konteynere kendi ağı üzerinden │
+    # │ ulaşıyor, dış port gerekmiyor. Domains sekmesinde port     │
+    # │ 3000 yazmak yeterli.                                          │
+    # │                                                              │
+    # │ ⚠ `expose` DIŞARI AÇMIYOR.                                   │
+    # │ Yalnızca Docker ağı içinde görünür kılıyor; internetten    │
+    # │ doğrudan erişilemiyor.                                        │
+    # └──────────────────────────────────────────────────────────────┘
+    expose:
+      - "3000"
+
+    deploy:
+      resources:
+        limits:
+          # Bot 4 CPU / 5 GB alıyor. Site render ağırlıklı,
+          # 1.5 CPU rahat yeter; sunucuda diğer projelere yer kalsın.
+          # Sunucunun tamamı bu projeye ayrıldı
+          cpus: "4"
+          memory: 6G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+    healthcheck:
+      # ⚠ ANAHTARSIZ UÇ SEÇİLDİ.
+      # `/api/markets` anahtar isterse 503 dönüyor ve konteyner
+      # sağlıksız sayılıp sürekli yeniden başlıyordu.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/deprem"]
+      interval: 30s
+      timeout: 8s
+      start_period: 45s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+    security_opt:
+      - no-new-privileges:true
+
+    # ┌─ TRAEFIK AĞI ⚠️ ────────────────────────────────────────────┐
+    # │ Dokploy'un ters vekili `dokploy-network` üzerinden         │
+    # │ konteynere ulaşıyor. Bu ağa katılmayan servis, Domains    │
+    # │ sekmesinde alan adı tanımlansa bile 502 döndürüyor.       │
+    # └──────────────────────────────────────────────────────────────┘
+    networks:
+      - dokploy-network
+
+    # ┌─ TRAEFIK ETİKETİ ELLE EKLENMİYOR ⚠️ ────────────────────────┐
+    # │ Dokploy, Domains sekmesinden alan adı tanımlandığında      │
+    # │ etiketleri KENDİSİ ekliyor (`web-xxxxx-web` gibi).          │
+    # │                                                              │
+    # │ Elle etiket eklemek aynı alan adı için İKİNCİ bir rota     │
+    # │ kuruyordu. Traefik eşit öncelikli iki rota görünce hangi   │
+    # │ servise gideceğini çözemiyor ve "404 page not found"       │
+    # │ döndürüyor.                                                   │
+    # │                                                              │
+    # │ Alan adı yönetimi tek yerden: Dokploy → Domains.           │
+    # └──────────────────────────────────────────────────────────────┘
+    #
+    # ┌─ AMA `traefik.enable` ŞART ⚠️ ──────────────────────────────┐
+    # │ Traefik `exposedByDefault: false` ile çalışıyor: bu etiket │
+    # │ olmayan konteyneri HİÇ görmüyor. Dokploy rota etiketlerini │
+    # │ ekliyor ama bunu eklemiyor.                                 │
+    # │                                                              │
+    # │ Etiketsizken Traefik günlüğü boş kalıyor ve her istek      │
+    # │ "404 page not found" dönüyor — hata mesajı çıkmadığı için │
+    # │ sebebi görünmüyor.                                            │
+    # └──────────────────────────────────────────────────────────────┘
+    labels:
+      traefik.enable: "true"
+
+networks:
+  dokploy-network:
+    # ⚠ DOKPLOY BU AĞI KENDİSİ KURUYOR; yeniden oluşturulmamalı
+    external: true
